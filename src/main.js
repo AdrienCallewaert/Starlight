@@ -1,4 +1,3 @@
-import "./styles/main.css";
 import { computeSky } from "./astro/astronomy.js";
 import { CameraService } from "./services/camera.js";
 import { LocationService } from "./services/location.js";
@@ -146,7 +145,7 @@ function loop(time) {
   requestAnimationFrame(loop);
 }
 
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
+if ("serviceWorker" in navigator && import.meta.env?.PROD) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/Starlight/sw.js").catch(() => {});
   });

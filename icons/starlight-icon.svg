@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Starlight">
+  <rect width="512" height="512" rx="104" fill="#050711"/>
+  <circle cx="256" cy="256" r="174" fill="#10192d"/>
+  <path d="M256 78l26 112 111-28-85 75 85 75-111-28-26 112-26-112-111 28 85-75-85-75 111 28z" fill="#f5d98a"/>
+  <circle cx="256" cy="256" r="38" fill="#f8fbff"/>
+  <path d="M112 383c68-48 180-57 288-6" fill="none" stroke="#7bdff2" stroke-width="16" stroke-linecap="round"/>
+</svg>
