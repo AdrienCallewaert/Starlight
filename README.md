@@ -67,7 +67,7 @@ Recommended setup:
 ## Project structure
 
 ```text
-src/
+app/
   astro/
     catalog.js       Local MVP catalog and information sheets.
     astronomy.js     Time/location astronomy calculations.
@@ -92,7 +92,7 @@ This MVP intentionally uses local low-precision formulae:
 - Sun, Moon, and planets use approximate orbital calculations.
 - Projection uses phone heading, pitch, and roll with a practical camera field of view.
 
-For production precision, replace the calculation layer in `src/astro/astronomy.js` with a library such as `astronomy-engine`, a richer star catalog, or a VSOP87 based implementation. Keep the renderer contract the same: each object should provide `alt`, `az`, `name`, `type`, `magnitude`, and information sheet fields.
+For production precision, replace the calculation layer in `app/astro/astronomy.js` with a library such as `astronomy-engine`, a richer star catalog, or a VSOP87 based implementation. Keep the renderer contract the same: each object should provide `alt`, `az`, `name`, `type`, `magnitude`, and information sheet fields.
 
 ## Mobile browser limits
 
