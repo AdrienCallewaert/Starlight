@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#050711" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta
+      name="description"
+      content="Starlight superpose les etoiles, planetes et constellations sur le ciel avec la camera du smartphone."
+    />
+    <link rel="manifest" href="/Starlight/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/Starlight/icons/starlight-icon.svg" />
+    <title>Starlight</title>
+  </head>
+  <body>
+    <noscript>Starlight a besoin de JavaScript pour afficher le ciel en realite augmentee.</noscript>
+    <div id="app">
+      <section class="start-screen" id="startScreen">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span>
+        </div>
+        <p class="eyebrow">Web AR astronomy</p>
+        <h1>Starlight</h1>
+        <p class="intro">
+          Une carte du ciel mobile qui combine camera, GPS, capteurs du telephone et heure locale.
+        </p>
+        <div class="permission-copy">
+          <span>Camera pour le ciel en direct</span>
+          <span>Position pour le calcul local</span>
+          <span>Orientation pour viser les astres</span>
+        </div>
+        <button class="primary-action" id="startButton" type="button">
+          Demarrer l'observation
+        </button>
+        <p class="start-status" id="startStatus" role="status"></p>
+      </section>
+
+      <main class="experience is-hidden" id="experience" aria-label="Observation Starlight">
+        <video id="cameraFeed" class="camera-feed" autoplay muted playsinline></video>
+        <div class="camera-fallback" id="cameraFallback" aria-hidden="true"></div>
+        <canvas id="skyCanvas" class="sky-canvas"></canvas>
+
+        <header class="hud hud-top">
+          <div class="hud-block">
+            <span class="hud-label">Heure</span>
+            <strong id="timeReadout">--:--</strong>
+          </div>
+          <div class="hud-block location-block">
+            <span class="hud-label">Position</span>
+            <strong id="locationReadout">Recherche GPS</strong>
+          </div>
+          <button class="icon-button" id="debugToggle" type="button" aria-pressed="false" title="Debug">
+            DBG
+          </button>
+        </header>
+
+        <div class="permission-banner" id="permissionBanner" role="status"></div>
+
+        <aside class="debug-panel is-hidden" id="debugPanel">
+          <div><span>Mode</span><strong id="debugMode">--</strong></div>
+          <div><span>Lat</span><strong id="debugLat">--</strong></div>
+          <div><span>Lon</span><strong id="debugLon">--</strong></div>
+          <div><span>Alt</span><strong id="debugAltitude">--</strong></div>
+          <div><span>Azimut</span><strong id="debugHeading">--</strong></div>
+          <div><span>Inclinaison</span><strong id="debugPitch">--</strong></div>
+          <div><span>Rotation</span><strong id="debugRoll">--</strong></div>
+          <div><span>Fuseau</span><strong id="debugTimezone">--</strong></div>
+        </aside>
+
+        <section class="bottom-sheet" id="infoSheet" aria-live="polite" aria-hidden="true">
+          <button class="sheet-close" id="sheetClose" type="button" aria-label="Fermer">x</button>
+          <p class="sheet-kicker" id="sheetType">Objet celeste</p>
+          <h2 id="sheetTitle">Objet</h2>
+          <dl class="sheet-facts">
+            <div>
+              <dt>Constellation</dt>
+              <dd id="sheetConstellation">--</dd>
+            </div>
+            <div>
+              <dt>Distance</dt>
+              <dd id="sheetDistance">--</dd>
+            </div>
+            <div>
+              <dt>Magnitude</dt>
+              <dd id="sheetMagnitude">--</dd>
+            </div>
+          </dl>
+          <p id="sheetDescription"></p>
+          <p class="sheet-history" id="sheetHistory"></p>
+          <ul class="sheet-list" id="sheetFacts"></ul>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

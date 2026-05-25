@@ -1,0 +1,19 @@
+{
+  "name": "Starlight",
+  "short_name": "Starlight",
+  "description": "Carte du ciel mobile en realite augmentee.",
+  "start_url": "/Starlight/",
+  "scope": "/Starlight/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#050711",
+  "theme_color": "#050711",
+  "icons": [
+    {
+      "src": "/Starlight/icons/starlight-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
