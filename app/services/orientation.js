@@ -4,6 +4,7 @@ export class OrientationService extends EventTarget {
   constructor() {
     super();
     this.orientation = createDemoOrientation();
+    this.rawOrientation = null;
     this.isDemo = true;
     this.hasSensorData = false;
     this.demoFrame = null;
@@ -60,19 +61,19 @@ export class OrientationService extends EventTarget {
       this.demoFrame = null;
     }
 
-    const heading = normalizeDegrees(webkitHeading ?? 360 - alpha);
-    const pitch = beta === null ? this.orientation.pitch : clamp(90 - Math.abs(beta), -20, 95);
-    const roll = gamma === null ? 0 : clamp(gamma, -90, 90);
-
-    this.orientation = {
-      heading,
-      pitch,
-      roll,
+    const nextOrientation = {
+      heading: normalizeDegrees(webkitHeading ?? 360 - alpha),
+      pitch: beta === null ? this.orientation.pitch : clamp(90 - Math.abs(beta), -20, 95),
+      roll: gamma === null ? 0 : clamp(gamma, -90, 90),
       alpha,
       beta,
       gamma,
       source: event.absolute ? "absolute" : "device"
     };
+
+    const shouldInitialize = this.rawOrientation === null;
+    this.rawOrientation = nextOrientation;
+    this.orientation = shouldInitialize ? nextOrientation : smoothOrientation(this.orientation, nextOrientation, 0.22);
 
     this.dispatchEvent(new CustomEvent("change", { detail: this.orientation }));
   }
@@ -99,6 +100,24 @@ export class OrientationService extends EventTarget {
       this.demoFrame = requestAnimationFrame(animate);
     }
   }
+}
+
+function smoothOrientation(current, next, factor) {
+  return {
+    ...next,
+    heading: smoothAngle(current.heading, next.heading, factor),
+    pitch: smoothNumber(current.pitch, next.pitch, factor),
+    roll: smoothNumber(current.roll, next.roll, factor)
+  };
+}
+
+function smoothAngle(current, next, factor) {
+  const delta = ((next - current + 540) % 360) - 180;
+  return normalizeDegrees(current + delta * factor);
+}
+
+function smoothNumber(current, next, factor) {
+  return current + (next - current) * factor;
 }
 
 function createDemoOrientation() {
