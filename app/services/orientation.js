@@ -82,7 +82,7 @@ export class OrientationService extends EventTarget {
 
     const shouldInitialize = this.rawOrientation === null;
     this.rawOrientation = nextOrientation;
-    this.orientation = shouldInitialize ? nextOrientation : smoothOrientation(this.orientation, nextOrientation, 0.22);
+    this.orientation = shouldInitialize ? nextOrientation : smoothOrientation(this.orientation, nextOrientation, 0.42);
 
     this.dispatchEvent(new CustomEvent("change", { detail: this.orientation }));
   }
@@ -112,6 +112,17 @@ export class OrientationService extends EventTarget {
 }
 
 function smoothOrientation(current, next, factor) {
+  if (current.basis && next.basis) {
+    const basis = smoothBasis(current.basis, next.basis, factor);
+    const angles = anglesFromBasis(basis);
+
+    return {
+      ...next,
+      ...angles,
+      basis
+    };
+  }
+
   return {
     ...next,
     heading: smoothAngle(current.heading, next.heading, factor),
@@ -135,19 +146,16 @@ function deviceAnglesToCameraOrientation({ alpha, beta, gamma, screenAngle, sour
   const yAxis = { east: matrix.m12, north: matrix.m22, up: matrix.m32 };
   const zAxis = { east: matrix.m13, north: matrix.m23, up: matrix.m33 };
   const forward = normalize(toRenderVector({ east: -zAxis.east, north: -zAxis.north, up: -zAxis.up }));
-  const screenUp = normalize(projectOnPlane(toRenderVector(screenUpEarthAxis(xAxis, yAxis, screenAngle)), forward));
-  const heading = normalizeDegrees(toDegrees(Math.atan2(forward.x, forward.z)));
-  const pitch = toDegrees(Math.asin(clamp(forward.y, -1, 1)));
-  const basis = unrolledCameraBasis(forward, heading);
-  const roll = toDegrees(Math.atan2(-dot(screenUp, basis.right), dot(screenUp, basis.up)));
+  const screenRight = normalize(projectOnPlane(toRenderVector(screenRightEarthAxis(xAxis, yAxis, screenAngle)), forward));
+  const basis = orthonormalBasis(forward, screenRight);
+  const angles = anglesFromBasis(basis);
 
   return {
-    heading,
-    pitch,
-    roll,
+    ...angles,
     alpha,
     beta,
     gamma,
+    basis,
     source
   };
 }
@@ -176,22 +184,16 @@ function deviceRotationMatrix(alpha, beta, gamma) {
   };
 }
 
-function screenUpEarthAxis(xAxis, yAxis, screenAngle) {
-  const angle = normalizeDegrees(screenAngle);
+function screenRightEarthAxis(xAxis, yAxis, screenAngle) {
+  const angle = toRadians(normalizeDegrees(screenAngle));
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
 
-  if (angle === 90) {
-    return negateEarth(xAxis);
-  }
-
-  if (angle === 180) {
-    return negateEarth(yAxis);
-  }
-
-  if (angle === 270) {
-    return xAxis;
-  }
-
-  return yAxis;
+  return {
+    east: xAxis.east * cos - yAxis.east * sin,
+    north: xAxis.north * cos - yAxis.north * sin,
+    up: xAxis.up * cos - yAxis.up * sin
+  };
 }
 
 function getScreenAngle() {
@@ -206,12 +208,54 @@ function toRenderVector(vector) {
   };
 }
 
-function unrolledCameraBasis(forward, heading) {
-  const worldUp = { x: 0, y: 1, z: 0 };
-  let right = normalize(cross(worldUp, forward));
+function orthonormalBasis(forward, preferredRight) {
+  let right = normalize(projectOnPlane(preferredRight, forward));
 
   if (length(right) < 0.001) {
-    right = vectorFromAltAz(heading + 90, 0);
+    right = normalize(cross({ x: 0, y: 1, z: 0 }, forward));
+  }
+
+  if (length(right) < 0.001) {
+    right = { x: 1, y: 0, z: 0 };
+  }
+
+  return {
+    forward: normalize(forward),
+    right,
+    up: normalize(cross(forward, right))
+  };
+}
+
+function smoothBasis(current, next, factor) {
+  const forward = normalize(lerpVector(current.forward, next.forward, factor));
+  const right = normalize(lerpVector(current.right, next.right, factor));
+
+  return orthonormalBasis(forward, right);
+}
+
+function anglesFromBasis(basis) {
+  const heading = normalizeDegrees(toDegrees(Math.atan2(basis.forward.x, basis.forward.z)));
+  const pitch = toDegrees(Math.asin(clamp(basis.forward.y, -1, 1)));
+  const unrolled = fallbackBasisFromForward(basis.forward, heading);
+  const roll = toDegrees(Math.atan2(-dot(basis.up, unrolled.right), dot(basis.up, unrolled.up)));
+
+  return {
+    heading,
+    pitch,
+    roll
+  };
+}
+
+function fallbackBasisFromForward(forward, heading) {
+  let right = normalize(cross({ x: 0, y: 1, z: 0 }, forward));
+
+  if (length(right) < 0.001) {
+    const angle = toRadians(heading + 90);
+    right = {
+      x: Math.sin(angle),
+      y: 0,
+      z: Math.cos(angle)
+    };
   }
 
   return {
@@ -220,15 +264,11 @@ function unrolledCameraBasis(forward, heading) {
   };
 }
 
-function vectorFromAltAz(az, alt) {
-  const azRad = toRadians(az);
-  const altRad = toRadians(alt);
-  const cosAlt = Math.cos(altRad);
-
+function lerpVector(current, next, factor) {
   return {
-    x: cosAlt * Math.sin(azRad),
-    y: Math.sin(altRad),
-    z: cosAlt * Math.cos(azRad)
+    x: current.x + (next.x - current.x) * factor,
+    y: current.y + (next.y - current.y) * factor,
+    z: current.z + (next.z - current.z) * factor
   };
 }
 
@@ -239,14 +279,6 @@ function projectOnPlane(vector, normal) {
     x: vector.x - normal.x * amount,
     y: vector.y - normal.y * amount,
     z: vector.z - normal.z * amount
-  };
-}
-
-function negateEarth(vector) {
-  return {
-    east: -vector.east,
-    north: -vector.north,
-    up: -vector.up
   };
 }
 

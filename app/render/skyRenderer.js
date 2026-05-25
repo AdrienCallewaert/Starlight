@@ -20,7 +20,6 @@ export class SkyRenderer {
     this.dpr = 1;
     this.hitTargets = [];
     this.lastProjected = new Map();
-    this.projectedCache = new Map();
   }
 
   render({ sky, orientation, selectedId = null }) {
@@ -29,7 +28,7 @@ export class SkyRenderer {
 
     ctx.clearRect(0, 0, this.width, this.height);
     this.hitTargets = [];
-    const nextProjectedCache = new Map();
+    this.lastProjected = new Map();
 
     this.drawCameraTint(ctx);
     this.drawCompass(ctx, orientation);
@@ -39,14 +38,11 @@ export class SkyRenderer {
     for (const object of sky.objects) {
       const point = this.project(object, orientation);
       if (point.visible) {
-        const stablePoint = this.stabilizeProjection(object.id, point);
-        projected.set(object.id, stablePoint);
-        nextProjectedCache.set(object.id, stablePoint);
+        projected.set(object.id, point);
+        this.lastProjected.set(object.id, point);
       }
     }
 
-    this.projectedCache = nextProjectedCache;
-    this.lastProjected = projected;
     this.drawConstellations(ctx, sky.constellations, projected);
     this.drawObjects(ctx, sky.objects, projected, selectedId);
     this.drawReticle(ctx);
@@ -84,28 +80,6 @@ export class SkyRenderer {
     this.canvas.width = Math.round(nextWidth * nextDpr);
     this.canvas.height = Math.round(nextHeight * nextDpr);
     this.ctx.setTransform(nextDpr, 0, 0, nextDpr, 0, 0);
-  }
-
-  stabilizeProjection(id, point) {
-    const previous = this.projectedCache.get(id);
-
-    if (!previous) {
-      return point;
-    }
-
-    const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
-
-    if (distance > 110) {
-      return point;
-    }
-
-    const factor = distance < 10 ? 0.2 : 0.34;
-
-    return {
-      ...point,
-      x: previous.x + (point.x - previous.x) * factor,
-      y: previous.y + (point.y - previous.y) * factor
-    };
   }
 
   project(object, orientation) {
@@ -499,6 +473,10 @@ function vectorFromAltAz(az, alt) {
 }
 
 function cameraBasis(orientation) {
+  if (orientation.basis?.forward && orientation.basis?.right && orientation.basis?.up) {
+    return orientation.basis;
+  }
+
   const forward = vectorFromAltAz(orientation.heading, orientation.pitch);
   const worldUp = { x: 0, y: 1, z: 0 };
   let right = normalize(cross(worldUp, forward));
