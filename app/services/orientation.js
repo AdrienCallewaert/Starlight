@@ -1,4 +1,4 @@
-import { clamp, normalizeDegrees } from "../utils/math.js";
+import { clamp, normalizeDegrees, toDegrees, toRadians } from "../utils/math.js";
 
 export class OrientationService extends EventTarget {
   constructor() {
@@ -61,15 +61,24 @@ export class OrientationService extends EventTarget {
       this.demoFrame = null;
     }
 
-    const nextOrientation = {
-      heading: normalizeDegrees(webkitHeading ?? 360 - alpha),
-      pitch: beta === null ? this.orientation.pitch : clamp(90 - Math.abs(beta), -20, 95),
-      roll: gamma === null ? 0 : clamp(gamma, -90, 90),
-      alpha,
-      beta,
-      gamma,
-      source: event.absolute ? "absolute" : "device"
-    };
+    const nextOrientation =
+      beta === null || gamma === null
+        ? {
+            heading: normalizeDegrees(webkitHeading ?? 360 - alpha),
+            pitch: this.orientation.pitch,
+            roll: this.orientation.roll,
+            alpha,
+            beta,
+            gamma,
+            source: event.absolute ? "absolute" : "device"
+          }
+        : deviceAnglesToCameraOrientation({
+            alpha: webkitHeading === null ? alpha : normalizeDegrees(360 - webkitHeading),
+            beta,
+            gamma,
+            screenAngle: getScreenAngle(),
+            source: event.absolute || webkitHeading !== null ? "absolute" : "device"
+          });
 
     const shouldInitialize = this.rawOrientation === null;
     this.rawOrientation = nextOrientation;
@@ -86,7 +95,7 @@ export class OrientationService extends EventTarget {
       this.orientation = {
         heading: normalizeDegrees(205 + seconds * 4),
         pitch: 36 + Math.sin(seconds * 0.55) * 12,
-        roll: Math.sin(seconds * 0.8) * 5,
+        roll: 0,
         alpha: null,
         beta: null,
         gamma: null,
@@ -118,6 +127,157 @@ function smoothAngle(current, next, factor) {
 
 function smoothNumber(current, next, factor) {
   return current + (next - current) * factor;
+}
+
+function deviceAnglesToCameraOrientation({ alpha, beta, gamma, screenAngle, source }) {
+  const matrix = deviceRotationMatrix(alpha, beta, gamma);
+  const xAxis = { east: matrix.m11, north: matrix.m21, up: matrix.m31 };
+  const yAxis = { east: matrix.m12, north: matrix.m22, up: matrix.m32 };
+  const zAxis = { east: matrix.m13, north: matrix.m23, up: matrix.m33 };
+  const forward = normalize(toRenderVector({ east: -zAxis.east, north: -zAxis.north, up: -zAxis.up }));
+  const screenUp = normalize(projectOnPlane(toRenderVector(screenUpEarthAxis(xAxis, yAxis, screenAngle)), forward));
+  const heading = normalizeDegrees(toDegrees(Math.atan2(forward.x, forward.z)));
+  const pitch = toDegrees(Math.asin(clamp(forward.y, -1, 1)));
+  const basis = unrolledCameraBasis(forward, heading);
+  const roll = toDegrees(Math.atan2(-dot(screenUp, basis.right), dot(screenUp, basis.up)));
+
+  return {
+    heading,
+    pitch,
+    roll,
+    alpha,
+    beta,
+    gamma,
+    source
+  };
+}
+
+function deviceRotationMatrix(alpha, beta, gamma) {
+  const z = toRadians(alpha);
+  const x = toRadians(beta);
+  const y = toRadians(gamma);
+  const cX = Math.cos(x);
+  const cY = Math.cos(y);
+  const cZ = Math.cos(z);
+  const sX = Math.sin(x);
+  const sY = Math.sin(y);
+  const sZ = Math.sin(z);
+
+  return {
+    m11: cZ * cY - sZ * sX * sY,
+    m12: -cX * sZ,
+    m13: cY * sZ * sX + cZ * sY,
+    m21: cY * sZ + cZ * sX * sY,
+    m22: cZ * cX,
+    m23: sZ * sY - cZ * cY * sX,
+    m31: -cX * sY,
+    m32: sX,
+    m33: cX * cY
+  };
+}
+
+function screenUpEarthAxis(xAxis, yAxis, screenAngle) {
+  const angle = normalizeDegrees(screenAngle);
+
+  if (angle === 90) {
+    return negateEarth(xAxis);
+  }
+
+  if (angle === 180) {
+    return negateEarth(yAxis);
+  }
+
+  if (angle === 270) {
+    return xAxis;
+  }
+
+  return yAxis;
+}
+
+function getScreenAngle() {
+  return screen.orientation?.angle ?? window.orientation ?? 0;
+}
+
+function toRenderVector(vector) {
+  return {
+    x: vector.east,
+    y: vector.up,
+    z: vector.north
+  };
+}
+
+function unrolledCameraBasis(forward, heading) {
+  const worldUp = { x: 0, y: 1, z: 0 };
+  let right = normalize(cross(worldUp, forward));
+
+  if (length(right) < 0.001) {
+    right = vectorFromAltAz(heading + 90, 0);
+  }
+
+  return {
+    right,
+    up: normalize(cross(forward, right))
+  };
+}
+
+function vectorFromAltAz(az, alt) {
+  const azRad = toRadians(az);
+  const altRad = toRadians(alt);
+  const cosAlt = Math.cos(altRad);
+
+  return {
+    x: cosAlt * Math.sin(azRad),
+    y: Math.sin(altRad),
+    z: cosAlt * Math.cos(azRad)
+  };
+}
+
+function projectOnPlane(vector, normal) {
+  const amount = dot(vector, normal);
+
+  return {
+    x: vector.x - normal.x * amount,
+    y: vector.y - normal.y * amount,
+    z: vector.z - normal.z * amount
+  };
+}
+
+function negateEarth(vector) {
+  return {
+    east: -vector.east,
+    north: -vector.north,
+    up: -vector.up
+  };
+}
+
+function dot(a, b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+function cross(a, b) {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x
+  };
+}
+
+function length(vector) {
+  return Math.hypot(vector.x, vector.y, vector.z);
+}
+
+function normalize(vector) {
+  const size = length(vector);
+
+  if (size < 0.000001) {
+    return { x: 0, y: 0, z: 0 };
+  }
+
+  return {
+    x: vector.x / size,
+    y: vector.y / size,
+    z: vector.z / size
+  };
 }
 
 function createDemoOrientation() {

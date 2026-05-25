@@ -1,4 +1,4 @@
-import { clamp, signedDeltaDegrees, toRadians } from "../utils/math.js";
+import { clamp, normalizeDegrees, signedDeltaDegrees, toRadians } from "../utils/math.js";
 
 const DIRECTIONS = [
   { label: "N", az: 0 },
@@ -185,32 +185,72 @@ export class SkyRenderer {
 
   drawAltitudeGuide(ctx, orientation) {
     ctx.save();
-    ctx.globalAlpha = 0.24;
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.34)";
     ctx.lineWidth = 1;
-    ctx.setLineDash([4, 10]);
+    ctx.font = "700 10px Inter, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
 
-    const labels = [-30, 0, 30, 60, 90];
-    const horizontalFov = this.width > this.height ? 82 : 66;
-    const verticalFov = horizontalFov * (this.height / Math.max(1, this.width));
+    for (const altitude of [0, 30, 60, 90]) {
+      const isHorizon = altitude === 0;
+      let started = false;
+      let previousPoint = null;
 
-    for (const altitude of labels) {
-      const y = this.height / 2 - ((altitude - orientation.pitch) / verticalFov) * this.height;
-      if (y < 110 || y > this.height - 80) {
-        continue;
+      ctx.globalAlpha = isHorizon ? 0.46 : 0.22;
+      ctx.strokeStyle = isHorizon ? "rgba(245, 217, 138, 0.68)" : "rgba(255, 255, 255, 0.34)";
+      ctx.setLineDash(isHorizon ? [10, 10] : [4, 12]);
+      ctx.beginPath();
+
+      for (let offset = -132; offset <= 132; offset += 3) {
+        const point = this.project(
+          {
+            az: normalizeDegrees(orientation.heading + offset),
+            alt: altitude
+          },
+          orientation
+        );
+
+        if (!point.visible) {
+          started = false;
+          previousPoint = null;
+          continue;
+        }
+
+        const jumped = previousPoint && Math.hypot(point.x - previousPoint.x, point.y - previousPoint.y) > 96;
+
+        if (!started || jumped) {
+          ctx.moveTo(point.x, point.y);
+          started = true;
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+
+        previousPoint = point;
       }
 
-      ctx.beginPath();
-      ctx.moveTo(18, y);
-      ctx.lineTo(this.width - 18, y);
       ctx.stroke();
-      ctx.fillStyle = "rgba(247, 248, 251, 0.62)";
-      ctx.font = "700 10px Inter, system-ui, sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText(`${altitude} deg`, 22, y - 7);
+      this.drawAltitudeLabel(ctx, orientation, altitude);
     }
 
+    ctx.setLineDash([]);
     ctx.restore();
+  }
+
+  drawAltitudeLabel(ctx, orientation, altitude) {
+    const labelPoint = this.project(
+      {
+        az: normalizeDegrees(orientation.heading - 30),
+        alt: altitude
+      },
+      orientation
+    );
+
+    if (!labelPoint.visible || labelPoint.x < 14 || labelPoint.x > this.width - 70) {
+      return;
+    }
+
+    ctx.globalAlpha = altitude === 0 ? 0.72 : 0.5;
+    ctx.fillStyle = altitude === 0 ? "rgba(245, 217, 138, 0.86)" : "rgba(247, 248, 251, 0.64)";
+    ctx.fillText(altitude === 0 ? "HORIZON" : `${altitude} deg`, labelPoint.x + 8, labelPoint.y - 8);
   }
 
   drawConstellations(ctx, constellations, projected) {
