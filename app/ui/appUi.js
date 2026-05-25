@@ -10,6 +10,7 @@ export class AppUi {
     this.timeReadout = document.querySelector("#timeReadout");
     this.locationReadout = document.querySelector("#locationReadout");
     this.debugToggle = document.querySelector("#debugToggle");
+    this.aircraftToggle = document.querySelector("#aircraftToggle");
     this.debugPanel = document.querySelector("#debugPanel");
     this.sheet = document.querySelector("#infoSheet");
     this.sheetClose = document.querySelector("#sheetClose");
@@ -29,7 +30,8 @@ export class AppUi {
       heading: document.querySelector("#debugHeading"),
       pitch: document.querySelector("#debugPitch"),
       roll: document.querySelector("#debugRoll"),
-      timezone: document.querySelector("#debugTimezone")
+      timezone: document.querySelector("#debugTimezone"),
+      aircraft: document.querySelector("#debugAircraft")
     };
 
     this.timeFormatter = new Intl.DateTimeFormat("fr-FR", {
@@ -67,6 +69,14 @@ export class AppUi {
     });
   }
 
+  bindAircraftToggle(onToggle) {
+    this.aircraftToggle.addEventListener("click", () => {
+      const next = this.aircraftToggle.getAttribute("aria-pressed") !== "true";
+      this.aircraftToggle.setAttribute("aria-pressed", String(next));
+      onToggle(next);
+    });
+  }
+
   bindSheetClose(onClose) {
     this.sheetClose.addEventListener("click", onClose);
   }
@@ -76,7 +86,7 @@ export class AppUi {
     this.locationReadout.textContent = formatLocation(location);
   }
 
-  updateDebug({ location, orientation, timezone, cameraActive }) {
+  updateDebug({ location, orientation, timezone, cameraActive, aircraft, aircraftEnabled, aircraftStatus }) {
     const sensorMode = orientation.source === "demo" ? "capteurs demo" : orientation.source;
     this.debugFields.mode.textContent = cameraActive ? sensorMode : `camera demo / ${sensorMode}`;
     this.debugFields.lat.textContent = formatNumber(location.latitude, 5);
@@ -87,6 +97,7 @@ export class AppUi {
     this.debugFields.pitch.textContent = `${round(orientation.pitch, 1)} deg`;
     this.debugFields.roll.textContent = `${round(orientation.roll, 1)} deg`;
     this.debugFields.timezone.textContent = timezone;
+    this.debugFields.aircraft.textContent = aircraftEnabled ? `${aircraft.length} / ${aircraftStatus}` : "off";
   }
 
   openSheet(item) {

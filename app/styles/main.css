@@ -267,7 +267,7 @@ noscript {
   left: 12px;
   right: 12px;
   display: grid;
-  grid-template-columns: minmax(84px, auto) minmax(0, 1fr) 50px;
+  grid-template-columns: minmax(84px, auto) minmax(0, 1fr) 50px 50px;
   align-items: start;
   gap: 8px;
 }
@@ -319,6 +319,11 @@ noscript {
 .icon-button[aria-pressed="true"] {
   color: var(--cyan);
   border-color: rgba(123, 223, 242, 0.44);
+}
+
+#aircraftToggle[aria-pressed="true"] {
+  color: var(--green);
+  border-color: rgba(154, 240, 193, 0.44);
 }
 
 .permission-banner {
@@ -481,7 +486,7 @@ noscript {
   .hud-top {
     left: 20px;
     right: 20px;
-    grid-template-columns: 132px minmax(260px, 1fr) 50px;
+    grid-template-columns: 132px minmax(260px, 1fr) 50px 50px;
   }
 
   .bottom-sheet {

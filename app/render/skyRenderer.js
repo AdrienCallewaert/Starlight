@@ -85,15 +85,15 @@ export class SkyRenderer {
   project(object, orientation) {
     const horizontalFov = this.width > this.height ? 82 : 66;
     const verticalFov = horizontalFov * (this.height / Math.max(1, this.width));
+    const target = vectorFromAltAz(object.az, object.alt);
+    const basis = cameraBasis(orientation);
+    const cameraX = dot(target, basis.right);
+    const cameraY = dot(target, basis.up);
+    const cameraZ = dot(target, basis.forward);
+    const x = this.width / 2 + (cameraX / Math.max(0.001, cameraZ)) * (this.width / 2) / Math.tan(toRadians(horizontalFov / 2));
+    const y = this.height / 2 - (cameraY / Math.max(0.001, cameraZ)) * (this.height / 2) / Math.tan(toRadians(verticalFov / 2));
     const azDelta = signedDeltaDegrees(object.az - orientation.heading);
     const altDelta = object.alt - orientation.pitch;
-    const baseX = this.width / 2 + (azDelta / horizontalFov) * this.width;
-    const baseY = this.height / 2 - (altDelta / verticalFov) * this.height;
-    const roll = toRadians(-orientation.roll || 0);
-    const centeredX = baseX - this.width / 2;
-    const centeredY = baseY - this.height / 2;
-    const x = this.width / 2 + centeredX * Math.cos(roll) - centeredY * Math.sin(roll);
-    const y = this.height / 2 + centeredX * Math.sin(roll) + centeredY * Math.cos(roll);
     const margin = 68;
 
     return {
@@ -101,7 +101,9 @@ export class SkyRenderer {
       y,
       azDelta,
       altDelta,
+      depth: cameraZ,
       visible:
+        cameraZ > 0.04 &&
         object.alt > -14 &&
         x > -margin &&
         x < this.width + margin &&
@@ -266,13 +268,16 @@ export class SkyRenderer {
 
   drawObject(ctx, object, point, selected) {
     const size = objectSize(object);
-    const alpha = clamp(1.08 - Math.max(-1.5, object.magnitude) * 0.12, 0.42, 1);
+    const magnitude = typeof object.magnitude === "number" ? object.magnitude : 1;
+    const alpha = object.category === "aircraft" ? 0.96 : clamp(1.08 - Math.max(-1.5, magnitude) * 0.12, 0.42, 1);
     const color = object.color || "#ffffff";
 
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    if (object.category === "sun") {
+    if (object.category === "aircraft") {
+      this.drawAircraft(ctx, object, point, size, selected);
+    } else if (object.category === "sun") {
       this.drawDisc(ctx, point, size + 7, color, "rgba(255, 196, 96, 0.22)");
     } else if (object.category === "moon") {
       this.drawDisc(ctx, point, size + 5, color, "rgba(255, 255, 255, 0.18)");
@@ -302,7 +307,7 @@ export class SkyRenderer {
       ctx.strokeStyle = "rgba(123, 223, 242, 0.92)";
       ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.arc(point.x, point.y, size + 14, 0, Math.PI * 2);
+      ctx.arc(point.x, point.y, size + (object.category === "aircraft" ? 16 : 14), 0, Math.PI * 2);
       ctx.stroke();
     }
 
@@ -320,6 +325,31 @@ export class SkyRenderer {
     ctx.beginPath();
     ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  drawAircraft(ctx, object, point, size, selected) {
+    const rotation = toRadians(signedDeltaDegrees((object.track ?? object.az) - object.az) + 90);
+    ctx.save();
+    ctx.translate(point.x, point.y);
+    ctx.rotate(rotation);
+    ctx.shadowColor = "rgba(154, 240, 193, 0.7)";
+    ctx.shadowBlur = selected ? 18 : 10;
+    ctx.fillStyle = selected ? "rgba(154, 240, 193, 0.98)" : "rgba(154, 240, 193, 0.82)";
+    ctx.beginPath();
+    ctx.moveTo(size + 7, 0);
+    ctx.lineTo(-size, -size * 0.78);
+    ctx.lineTo(-size * 0.42, 0);
+    ctx.lineTo(-size, size * 0.78);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(154, 240, 193, 0.42)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, size + 9, 0, Math.PI * 2);
+    ctx.stroke();
   }
 
   drawLabel(ctx, label, x, y, size, selected) {
@@ -357,6 +387,10 @@ export class SkyRenderer {
 }
 
 function objectSize(object) {
+  if (object.category === "aircraft") {
+    return 8;
+  }
+
   if (object.category === "sun") {
     return 7;
   }
@@ -373,9 +407,88 @@ function objectSize(object) {
 }
 
 function shouldShowLabel(object, selected) {
-  if (selected || object.category === "sun" || object.category === "moon" || object.category === "planet") {
+  if (
+    selected ||
+    object.category === "sun" ||
+    object.category === "moon" ||
+    object.category === "planet" ||
+    object.category === "aircraft"
+  ) {
     return true;
   }
 
   return object.magnitude <= 1.35;
+}
+
+function vectorFromAltAz(az, alt) {
+  const azRad = toRadians(az);
+  const altRad = toRadians(alt);
+  const cosAlt = Math.cos(altRad);
+
+  return {
+    x: cosAlt * Math.sin(azRad),
+    y: Math.sin(altRad),
+    z: cosAlt * Math.cos(azRad)
+  };
+}
+
+function cameraBasis(orientation) {
+  const forward = vectorFromAltAz(orientation.heading, orientation.pitch);
+  const worldUp = { x: 0, y: 1, z: 0 };
+  let right = normalize(cross(worldUp, forward));
+
+  if (length(right) < 0.001) {
+    right = vectorFromAltAz(orientation.heading + 90, 0);
+  }
+
+  let up = normalize(cross(forward, right));
+  const roll = toRadians(orientation.roll || 0);
+  const cosRoll = Math.cos(roll);
+  const sinRoll = Math.sin(roll);
+  const rolledRight = {
+    x: right.x * cosRoll + up.x * sinRoll,
+    y: right.y * cosRoll + up.y * sinRoll,
+    z: right.z * cosRoll + up.z * sinRoll
+  };
+  const rolledUp = {
+    x: up.x * cosRoll - right.x * sinRoll,
+    y: up.y * cosRoll - right.y * sinRoll,
+    z: up.z * cosRoll - right.z * sinRoll
+  };
+
+  return {
+    forward: normalize(forward),
+    right: normalize(rolledRight),
+    up: normalize(rolledUp)
+  };
+}
+
+function dot(a, b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+function cross(a, b) {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x
+  };
+}
+
+function length(vector) {
+  return Math.hypot(vector.x, vector.y, vector.z);
+}
+
+function normalize(vector) {
+  const size = length(vector);
+
+  if (size < 0.000001) {
+    return { x: 0, y: 0, z: 0 };
+  }
+
+  return {
+    x: vector.x / size,
+    y: vector.y / size,
+    z: vector.z / size
+  };
 }

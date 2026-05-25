@@ -7,7 +7,8 @@ const SCHLYTER_EPOCH = 2451543.5;
 export function computeSky(date, location) {
   const observer = {
     latitude: location.latitude,
-    longitude: location.longitude
+    longitude: location.longitude,
+    altitude: location.altitude || 0
   };
 
   const stars = STARS.map((star) => {
@@ -22,9 +23,12 @@ export function computeSky(date, location) {
     };
   });
 
-  const solarSystem = computeSolarSystem(date).map((body) => {
+  const solarSystem = computeSolarSystem(date, observer).map((body) => {
     const info = SOLAR_SYSTEM_OBJECTS[body.id];
-    const horizontal = equatorialToHorizontal(body.raDeg, body.decDeg, date, observer);
+    const horizontal =
+      typeof body.alt === "number" && typeof body.az === "number"
+        ? { alt: body.alt, az: body.az }
+        : equatorialToHorizontal(body.raDeg, body.decDeg, date, observer);
     return {
       ...info,
       ...body,
@@ -75,7 +79,13 @@ export function localSiderealTime(date, longitude) {
   return normalizeDegrees(gmst + longitude);
 }
 
-function computeSolarSystem(date) {
+function computeSolarSystem(date, observer) {
+  const precise = computeSolarSystemWithAstronomyEngine(date, observer);
+
+  if (precise) {
+    return precise;
+  }
+
   const jd = julianDate(date);
   const days = jd - SCHLYTER_EPOCH;
   const earth = heliocentricPosition("earth", days);
@@ -108,6 +118,51 @@ function computeSolarSystem(date) {
   });
 
   return [sun, moon, ...planets];
+}
+
+function computeSolarSystemWithAstronomyEngine(date, observer) {
+  const Astronomy = globalThis.Astronomy;
+
+  if (!Astronomy?.Equator || !Astronomy?.Horizon || !Astronomy?.Observer || !Astronomy?.Body) {
+    return null;
+  }
+
+  const astroObserver = new Astronomy.Observer(observer.latitude, observer.longitude, observer.altitude || 0);
+  const bodyMap = [
+    ["sun", Astronomy.Body.Sun],
+    ["moon", Astronomy.Body.Moon],
+    ["mercury", Astronomy.Body.Mercury],
+    ["venus", Astronomy.Body.Venus],
+    ["mars", Astronomy.Body.Mars],
+    ["jupiter", Astronomy.Body.Jupiter],
+    ["saturn", Astronomy.Body.Saturn]
+  ];
+
+  try {
+    return bodyMap.map(([id, body]) => {
+      const equator = Astronomy.Equator(body, date, astroObserver, true, true);
+      const horizon = Astronomy.Horizon(date, astroObserver, equator.ra, equator.dec, "normal");
+      return {
+        id,
+        raDeg: equator.ra * 15,
+        decDeg: equator.dec,
+        alt: horizon.altitude,
+        az: normalizeDegrees(horizon.azimuth),
+        distance: formatAstronomyEngineDistance(id, equator.dist),
+        phase: "Position calculee avec Astronomy Engine."
+      };
+    });
+  } catch (error) {
+    return null;
+  }
+}
+
+function formatAstronomyEngineDistance(id, distanceAu) {
+  if (id === "moon") {
+    return `${Math.round(distanceAu * 149597870.7).toLocaleString("fr-FR")} km`;
+  }
+
+  return `${distanceAu.toFixed(2)} UA`;
 }
 
 function computeMoon(days) {
@@ -235,7 +290,6 @@ function planetElements(id, d) {
   return elements[id];
 }
 
-// This MVP uses local, low-precision formulae to avoid a backend and paid APIs.
-// Replace computeSolarSystem/equatorialToHorizontal later with astronomy-engine,
-// a richer star catalog, or a VSOP87 based implementation while keeping the
-// renderer contract: objects with { id, name, alt, az, magnitude, ...info }.
+// Stars still use the local catalog. Solar-system bodies use Astronomy Engine
+// when the CDN script is available, then fall back to these local formulae.
+// The renderer contract remains: objects with { id, name, alt, az, magnitude }.

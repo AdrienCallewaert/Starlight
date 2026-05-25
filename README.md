@@ -10,8 +10,10 @@ Starlight is a mobile-first Web AR sky map for GitHub Pages. It uses the phone c
 - Local time, date, and timezone from the browser.
 - Demo mode when camera, GPS, or sensors are not available.
 - Canvas overlay with bright stars, major constellations, Sun, Moon, Mercury, Venus, Mars, Jupiter, and Saturn.
+- Spherical vector projection for the sky overlay instead of a flat screen offset.
+- Optional live aircraft layer from Airplanes.live ADS-B data.
 - Bottom sheet for object information.
-- Debug panel for latitude, longitude, altitude, azimuth, pitch, roll, timezone, and active mode.
+- Debug panel for latitude, longitude, altitude, azimuth, pitch, roll, timezone, aircraft count, and active mode.
 - Static PWA structure that can be hosted on GitHub Pages.
 
 ## Install
@@ -68,11 +70,15 @@ Recommended setup:
 
 ```text
 app/
+  aircraft/
+    aircraftService.js  Airplanes.live fetch and aircraft sheet mapping.
   astro/
     catalog.js       Local MVP catalog and information sheets.
-    astronomy.js     Time/location astronomy calculations.
+    astronomy.js     Time/location astronomy calculations with Astronomy Engine fallback.
+  geo/
+    topocentric.js   WGS84 target-to-azimuth/elevation conversion.
   render/
-    skyRenderer.js   Canvas AR projection and touch targets.
+    skyRenderer.js   Spherical Canvas AR projection and touch targets.
   services/
     camera.js        Camera permission and stream handling.
     location.js      GPS permission, fallback, and watch.
@@ -86,13 +92,24 @@ app/
 
 ## Astronomy accuracy
 
-This MVP intentionally uses local low-precision formulae:
+This MVP now uses a hybrid precision layer:
 
 - Stars use fixed right ascension and declination from a small built-in catalog.
-- Sun, Moon, and planets use approximate orbital calculations.
-- Projection uses phone heading, pitch, and roll with a practical camera field of view.
+- Sun, Moon, and planets use Astronomy Engine from jsDelivr when available.
+- If the CDN is unreachable, the app falls back to local approximate orbital calculations.
+- Projection uses local spherical vectors, phone heading, pitch, roll, and a practical camera field of view.
 
-For production precision, replace the calculation layer in `app/astro/astronomy.js` with a library such as `astronomy-engine`, a richer star catalog, or a VSOP87 based implementation. Keep the renderer contract the same: each object should provide `alt`, `az`, `name`, `type`, `magnitude`, and information sheet fields.
+For production-grade star density, replace `app/astro/catalog.js` with a generated Gaia DR3 or Hipparcos subset. Keep the renderer contract the same: each object should provide `alt`, `az`, `name`, `type`, `magnitude`, and information sheet fields.
+
+## Live aircraft layer
+
+Starlight queries Airplanes.live around the current GPS position and converts each aircraft latitude, longitude, and altitude to local azimuth/elevation. The layer can be toggled with the `AIR` HUD button.
+
+Known limits:
+
+- Airplanes.live is rate limited, so Starlight polls every 10 seconds.
+- ADS-B coverage is incomplete and some aircraft may be hidden, delayed, filtered, or not transmitting.
+- The app has no backend, so it only uses public browser-callable endpoints.
 
 ## Mobile browser limits
 

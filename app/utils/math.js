@@ -25,3 +25,7 @@ export function round(value, decimals = 1) {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
 }
+
+export function isFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}

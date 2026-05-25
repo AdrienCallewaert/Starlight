@@ -7,6 +7,7 @@ import {
   isSecureRuntime,
   requestOrientationPermission
 } from "./services/permissions.js";
+import { AircraftService } from "./aircraft/aircraftService.js";
 import { SkyRenderer } from "./render/skyRenderer.js";
 import { AppUi } from "./ui/appUi.js";
 
@@ -17,6 +18,7 @@ const renderer = new SkyRenderer(canvas);
 const cameraService = new CameraService();
 const locationService = new LocationService();
 const orientationService = new OrientationService();
+const aircraftService = new AircraftService({ radiusNm: 45 });
 
 const state = {
   running: false,
@@ -35,14 +37,30 @@ const state = {
     objects: [],
     constellations: []
   },
+  aircraft: [],
+  aircraftEnabled: true,
+  aircraftLoading: false,
+  aircraftStatus: "en attente",
   selectedId: null,
   debugVisible: false,
   lastSkyUpdate: 0,
+  lastAircraftUpdate: 0,
   lastUiUpdate: 0
 };
 
 ui.bindDebugToggle((visible) => {
   state.debugVisible = visible;
+});
+
+ui.bindAircraftToggle((enabled) => {
+  state.aircraftEnabled = enabled;
+  state.aircraftStatus = enabled ? "reprise" : "desactive";
+
+  if (!enabled) {
+    state.aircraft = [];
+  } else {
+    state.lastAircraftUpdate = 0;
+  }
 });
 
 ui.bindSheetClose(() => {
@@ -126,8 +144,13 @@ function loop(time) {
     state.lastSkyUpdate = time;
   }
 
+  updateAircraftIfNeeded(time);
+
   renderer.render({
-    sky: state.sky,
+    sky: {
+      ...state.sky,
+      objects: state.aircraftEnabled ? [...state.sky.objects, ...state.aircraft] : state.sky.objects
+    },
     orientation: state.orientation,
     selectedId: state.selectedId
   });
@@ -143,6 +166,30 @@ function loop(time) {
   }
 
   requestAnimationFrame(loop);
+}
+
+function updateAircraftIfNeeded(time) {
+  if (!state.aircraftEnabled || state.aircraftLoading || time - state.lastAircraftUpdate < 10000) {
+    return;
+  }
+
+  state.aircraftLoading = true;
+  state.aircraftStatus = "synchro";
+  state.lastAircraftUpdate = time;
+
+  aircraftService
+    .fetchNearby(state.location)
+    .then((result) => {
+      state.aircraft = result.aircraft;
+      state.aircraftStatus = `${result.count} live`;
+    })
+    .catch((error) => {
+      state.aircraftStatus = "indisponible";
+      state.aircraft = [];
+    })
+    .finally(() => {
+      state.aircraftLoading = false;
+    });
 }
 
 if ("serviceWorker" in navigator && import.meta.env?.PROD) {
