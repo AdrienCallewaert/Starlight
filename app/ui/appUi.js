@@ -10,8 +10,13 @@ export class AppUi {
     this.timeReadout = document.querySelector("#timeReadout");
     this.locationReadout = document.querySelector("#locationReadout");
     this.debugToggle = document.querySelector("#debugToggle");
+    this.calibrationToggle = document.querySelector("#calibrationToggle");
     this.aircraftToggle = document.querySelector("#aircraftToggle");
     this.debugPanel = document.querySelector("#debugPanel");
+    this.calibrationPanel = document.querySelector("#calibrationPanel");
+    this.calibrationCandidates = document.querySelector("#calibrationCandidates");
+    this.calibrationReset = document.querySelector("#calibrationReset");
+    this.calibrationStatus = document.querySelector("#calibrationStatus");
     this.sheet = document.querySelector("#infoSheet");
     this.sheetClose = document.querySelector("#sheetClose");
     this.sheetType = document.querySelector("#sheetType");
@@ -33,6 +38,7 @@ export class AppUi {
       timezone: document.querySelector("#debugTimezone"),
       horizon: document.querySelector("#debugHorizon"),
       sphere: document.querySelector("#debugSphere"),
+      calibration: document.querySelector("#debugCalibration"),
       cache: document.querySelector("#debugCache"),
       aircraft: document.querySelector("#debugAircraft"),
       version: document.querySelector("#debugVersion")
@@ -81,6 +87,18 @@ export class AppUi {
     });
   }
 
+  bindCalibrationToggle(onToggle) {
+    this.calibrationToggle.addEventListener("click", () => {
+      const next = this.calibrationToggle.getAttribute("aria-pressed") !== "true";
+      this.setCalibrationPanelVisible(next);
+      onToggle(next);
+    });
+  }
+
+  bindCalibrationReset(onReset) {
+    this.calibrationReset.addEventListener("click", onReset);
+  }
+
   bindSheetClose(onClose) {
     this.sheetClose.addEventListener("click", onClose);
   }
@@ -88,6 +106,26 @@ export class AppUi {
   updateReadouts({ date, location }) {
     this.timeReadout.textContent = this.timeFormatter.format(date);
     this.locationReadout.textContent = formatLocation(location);
+  }
+
+  setCalibrationPanelVisible(visible) {
+    this.calibrationToggle.setAttribute("aria-pressed", String(visible));
+    this.calibrationPanel.classList.toggle("is-hidden", !visible);
+  }
+
+  updateCalibrationPanel({ candidates, calibration, onCalibrate }) {
+    const buttons = candidates.map((candidate) => {
+      const button = document.createElement("button");
+      button.className = "calibration-chip";
+      button.type = "button";
+      button.textContent = formatCandidate(candidate);
+      button.classList.toggle("is-active", calibration?.referenceId === candidate.id);
+      button.addEventListener("click", () => onCalibrate(candidate.id));
+      return button;
+    });
+
+    this.calibrationCandidates.replaceChildren(...buttons);
+    this.calibrationStatus.textContent = calibrationStatusText(calibration, candidates.length);
   }
 
   updateDebug({
@@ -99,6 +137,8 @@ export class AppUi {
     aircraftEnabled,
     aircraftStatus,
     cacheStatus,
+    calibration,
+    calibrationLabel,
     renderStats,
     appVersion
   }) {
@@ -117,6 +157,7 @@ export class AppUi {
       ? `${renderStats.projected}/${renderStats.aboveHorizon}/${renderStats.totalObjects} clip`
       : "--";
     this.debugFields.sphere.textContent = renderStats?.sphereMode || "--";
+    this.debugFields.calibration.textContent = calibrationLabel || (calibration?.active ? calibration.referenceName : "off");
     this.debugFields.cache.textContent = cacheStatus || "--";
     this.debugFields.aircraft.textContent = aircraftEnabled ? `${aircraft.length} / ${aircraftStatus}` : "off";
     this.debugFields.version.textContent = appVersion;
@@ -151,6 +192,19 @@ function createFactItem(text) {
 function formatLocation(location) {
   const prefix = location.source === "demo" ? "Demo" : "GPS";
   return `${prefix} ${formatNumber(location.latitude, 3)}, ${formatNumber(location.longitude, 3)}`;
+}
+
+function formatCandidate(candidate) {
+  const altitude = typeof candidate.alt === "number" ? `${Math.round(candidate.alt)} deg` : "--";
+  return `${candidate.name} ${altitude}`;
+}
+
+function calibrationStatusText(calibration, count) {
+  if (calibration?.active) {
+    return `${calibration.referenceName} cale, erreur ${calibration.errorDeg.toFixed(1)} deg.`;
+  }
+
+  return count > 0 ? "Vise au centre, puis touche un repere." : "Aucun repere brillant au-dessus de l'horizon.";
 }
 
 function formatNumber(value, decimals) {

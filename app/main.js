@@ -10,8 +10,15 @@ import {
 import { AircraftService } from "./aircraft/aircraftService.js";
 import { SkyRenderer } from "./render/skyRenderer.js";
 import { AppUi } from "./ui/appUi.js";
+import {
+  applyCalibration,
+  calibrationLabel,
+  createCalibration,
+  createEmptyCalibration,
+  referenceCandidates
+} from "./services/calibration.js";
 
-const APP_VERSION = "2026.05.27-cache-purge";
+const APP_VERSION = "2026.05.27-reference-cal";
 const CACHE_RELOAD_KEY = "starlight-cache-reload-version";
 const cacheStatus = {
   reload: ensureVersionedLaunchUrl(APP_VERSION),
@@ -45,6 +52,7 @@ const state = {
     source: "demo"
   },
   orientation: orientationService.orientation,
+  renderOrientation: orientationService.orientation,
   sky: {
     objects: [],
     constellations: []
@@ -53,6 +61,10 @@ const state = {
   aircraftEnabled: false,
   aircraftLoading: false,
   aircraftStatus: "desactive",
+  calibration: createEmptyCalibration(),
+  calibrationCandidates: [],
+  calibrationLabel: "off",
+  calibrationPanelVisible: false,
   cacheStatus: cacheStatus.reload ? "reload version" : cacheStatus.purge,
   renderStats: {
     totalObjects: 0,
@@ -71,6 +83,17 @@ const state = {
 
 ui.bindDebugToggle((visible) => {
   state.debugVisible = visible;
+});
+
+ui.bindCalibrationToggle((visible) => {
+  state.calibrationPanelVisible = visible;
+  updateCalibrationPanel();
+});
+
+ui.bindCalibrationReset(() => {
+  state.calibration = createEmptyCalibration();
+  state.calibrationLabel = calibrationLabel(state.calibration);
+  updateCalibrationPanel();
 });
 
 ui.bindAircraftToggle((enabled) => {
@@ -150,6 +173,8 @@ async function startObservation() {
 
   state.running = true;
   state.sky = computeSky(new Date(), state.location);
+  state.calibrationCandidates = referenceCandidates(state.sky.objects);
+  updateCalibrationPanel();
   requestAnimationFrame(loop);
 }
 
@@ -162,18 +187,21 @@ function loop(time) {
 
   if (time - state.lastSkyUpdate > 450) {
     state.sky = computeSky(state.date, state.location);
+    state.calibrationCandidates = referenceCandidates(state.sky.objects);
     state.lastSkyUpdate = time;
   }
 
   updateAircraftIfNeeded(time);
 
   const objects = state.aircraftEnabled ? [...state.sky.objects, ...state.aircraft] : state.sky.objects;
+  state.renderOrientation = applyCalibration(state.orientation, state.calibration);
+  state.calibrationLabel = calibrationLabel(state.calibration);
   state.renderStats = renderer.render({
     sky: {
       ...state.sky,
       objects
     },
-    orientation: state.orientation,
+    orientation: state.renderOrientation,
     selectedId: state.selectedId
   });
 
@@ -181,13 +209,41 @@ function loop(time) {
     ui.updateReadouts(state);
 
     if (state.debugVisible) {
-      ui.updateDebug(state);
+      ui.updateDebug({
+        ...state,
+        orientation: state.renderOrientation
+      });
+    }
+
+    if (state.calibrationPanelVisible) {
+      updateCalibrationPanel();
     }
 
     state.lastUiUpdate = time;
   }
 
   requestAnimationFrame(loop);
+}
+
+function calibrateOnReference(referenceId) {
+  const reference = state.sky.objects.find((object) => object.id === referenceId);
+
+  if (!reference) {
+    return;
+  }
+
+  state.calibration = createCalibration(reference, state.orientation);
+  state.calibrationLabel = calibrationLabel(state.calibration);
+  state.selectedId = reference.id;
+  updateCalibrationPanel();
+}
+
+function updateCalibrationPanel() {
+  ui.updateCalibrationPanel({
+    candidates: state.calibrationCandidates,
+    calibration: state.calibration,
+    onCalibrate: calibrateOnReference
+  });
 }
 
 function updateAircraftIfNeeded(time) {

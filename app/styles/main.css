@@ -269,13 +269,14 @@ noscript {
   left: 12px;
   right: 12px;
   display: grid;
-  grid-template-columns: minmax(84px, auto) minmax(0, 1fr) 50px 50px;
+  grid-template-columns: minmax(78px, auto) minmax(0, 1fr) 50px 50px 50px;
   align-items: start;
   gap: 8px;
 }
 
 .hud-block,
 .icon-button,
+.calibration-panel,
 .permission-banner,
 .debug-panel,
 .bottom-sheet {
@@ -328,6 +329,11 @@ noscript {
   border-color: rgba(154, 240, 193, 0.44);
 }
 
+#calibrationToggle[aria-pressed="true"] {
+  color: var(--gold);
+  border-color: rgba(245, 217, 138, 0.48);
+}
+
 .permission-banner {
   position: absolute;
   z-index: 5;
@@ -344,6 +350,72 @@ noscript {
 
 .permission-banner.is-visible {
   display: block;
+}
+
+.calibration-panel {
+  position: absolute;
+  z-index: 6;
+  top: calc(80px + env(safe-area-inset-top));
+  left: 12px;
+  width: min(330px, calc(100vw - 24px));
+  padding: 0.72rem;
+  border-radius: 8px;
+  pointer-events: auto;
+}
+
+.calibration-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.6rem;
+  color: var(--quiet);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.micro-button {
+  min-height: 30px;
+  padding: 0 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.calibration-candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.calibration-chip {
+  min-height: 36px;
+  padding: 0 0.72rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.calibration-chip.is-active {
+  border-color: rgba(245, 217, 138, 0.62);
+  color: var(--gold);
+  background: rgba(245, 217, 138, 0.11);
+}
+
+.calibration-status {
+  min-height: 1.2rem;
+  margin: 0.58rem 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
 }
 
 .debug-panel {
