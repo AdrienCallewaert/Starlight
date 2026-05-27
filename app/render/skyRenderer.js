@@ -11,6 +11,8 @@ const DIRECTIONS = [
   { label: "NW", az: 315 }
 ];
 
+const HORIZON_ALTITUDE = 0;
+
 export class SkyRenderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -20,6 +22,7 @@ export class SkyRenderer {
     this.dpr = 1;
     this.hitTargets = [];
     this.lastProjected = new Map();
+    this.stats = createEmptyStats();
   }
 
   render({ sky, orientation, selectedId = null }) {
@@ -29,6 +32,13 @@ export class SkyRenderer {
     ctx.clearRect(0, 0, this.width, this.height);
     this.hitTargets = [];
     this.lastProjected = new Map();
+    this.stats = {
+      totalObjects: sky.objects.length,
+      aboveHorizon: sky.objects.filter((object) => isAboveHorizon(object)).length,
+      projected: 0,
+      horizonClip: true,
+      sphereMode: orientation.basis ? "basis-3d" : "alt-az"
+    };
 
     this.drawCameraTint(ctx);
     this.drawCompass(ctx, orientation);
@@ -43,9 +53,13 @@ export class SkyRenderer {
       }
     }
 
+    this.stats.projected = projected.size;
+
     this.drawConstellations(ctx, sky.constellations, projected);
     this.drawObjects(ctx, sky.objects, projected, selectedId);
     this.drawReticle(ctx);
+
+    return this.stats;
   }
 
   pick(clientX, clientY) {
@@ -82,7 +96,8 @@ export class SkyRenderer {
     this.ctx.setTransform(nextDpr, 0, 0, nextDpr, 0, 0);
   }
 
-  project(object, orientation) {
+  project(object, orientation, options = {}) {
+    const { horizonClip = true } = options;
     const horizontalFov = this.width > this.height ? 82 : 66;
     const verticalFov = horizontalFov * (this.height / Math.max(1, this.width));
     const target = vectorFromAltAz(object.az, object.alt);
@@ -104,7 +119,7 @@ export class SkyRenderer {
       depth: cameraZ,
       visible:
         cameraZ > 0.04 &&
-        object.alt > -14 &&
+        (!horizonClip || isAboveHorizon(object)) &&
         x > -margin &&
         x < this.width + margin &&
         y > -margin &&
@@ -180,7 +195,8 @@ export class SkyRenderer {
             az: normalizeDegrees(orientation.heading + offset),
             alt: altitude
           },
-          orientation
+          orientation,
+          { horizonClip: false }
         );
 
         if (!point.visible) {
@@ -215,7 +231,8 @@ export class SkyRenderer {
         az: normalizeDegrees(orientation.heading - 30),
         alt: altitude
       },
-      orientation
+      orientation,
+      { horizonClip: false }
     );
 
     if (!labelPoint.visible || labelPoint.x < 14 || labelPoint.x > this.width - 70) {
@@ -424,6 +441,20 @@ export class SkyRenderer {
     ctx.stroke();
     ctx.restore();
   }
+}
+
+function createEmptyStats() {
+  return {
+    totalObjects: 0,
+    aboveHorizon: 0,
+    projected: 0,
+    horizonClip: true,
+    sphereMode: "alt-az"
+  };
+}
+
+function isAboveHorizon(object) {
+  return object.alt >= HORIZON_ALTITUDE;
 }
 
 function objectSize(object) {

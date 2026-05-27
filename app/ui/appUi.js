@@ -31,6 +31,8 @@ export class AppUi {
       pitch: document.querySelector("#debugPitch"),
       roll: document.querySelector("#debugRoll"),
       timezone: document.querySelector("#debugTimezone"),
+      horizon: document.querySelector("#debugHorizon"),
+      sphere: document.querySelector("#debugSphere"),
       aircraft: document.querySelector("#debugAircraft"),
       version: document.querySelector("#debugVersion")
     };
@@ -87,7 +89,17 @@ export class AppUi {
     this.locationReadout.textContent = formatLocation(location);
   }
 
-  updateDebug({ location, orientation, timezone, cameraActive, aircraft, aircraftEnabled, aircraftStatus, appVersion }) {
+  updateDebug({
+    location,
+    orientation,
+    timezone,
+    cameraActive,
+    aircraft,
+    aircraftEnabled,
+    aircraftStatus,
+    renderStats,
+    appVersion
+  }) {
     const sensorMode = orientation.source === "demo" ? "capteurs demo" : orientation.source;
     this.debugFields.mode.textContent = cameraActive ? sensorMode : `camera demo / ${sensorMode}`;
     this.debugFields.lat.textContent = formatNumber(location.latitude, 5);
@@ -98,6 +110,10 @@ export class AppUi {
     this.debugFields.pitch.textContent = `${round(orientation.pitch, 1)} deg`;
     this.debugFields.roll.textContent = `${round(orientation.roll, 1)} deg`;
     this.debugFields.timezone.textContent = timezone;
+    this.debugFields.horizon.textContent = renderStats
+      ? `${renderStats.projected}/${renderStats.aboveHorizon}/${renderStats.totalObjects} clip`
+      : "--";
+    this.debugFields.sphere.textContent = renderStats?.sphereMode || "--";
     this.debugFields.aircraft.textContent = aircraftEnabled ? `${aircraft.length} / ${aircraftStatus}` : "off";
     this.debugFields.version.textContent = appVersion;
   }

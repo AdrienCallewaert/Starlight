@@ -142,7 +142,7 @@ noscript {
 .start-screen h1 {
   margin: 0;
   font-family: ui-serif, Georgia, "Times New Roman", serif;
-  font-size: clamp(3.4rem, 20vw, 6.7rem);
+  font-size: clamp(3.1rem, 18vw, 6.7rem);
   font-weight: 500;
   line-height: 0.92;
   letter-spacing: 0;
@@ -191,7 +191,9 @@ noscript {
 }
 
 .primary-action {
-  width: min(100%, 25rem);
+  width: calc(100vw - 44px);
+  width: calc(100dvw - 44px);
+  max-width: 25rem;
   margin-top: 0.9rem;
   padding: 0 1.35rem;
   background: var(--text);

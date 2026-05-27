@@ -11,7 +11,7 @@ import { AircraftService } from "./aircraft/aircraftService.js";
 import { SkyRenderer } from "./render/skyRenderer.js";
 import { AppUi } from "./ui/appUi.js";
 
-const APP_VERSION = "2026.05.27-debug-cache";
+const APP_VERSION = "2026.05.27-horizon-sphere";
 
 const ui = new AppUi();
 const video = document.querySelector("#cameraFeed");
@@ -43,6 +43,13 @@ const state = {
   aircraftEnabled: false,
   aircraftLoading: false,
   aircraftStatus: "desactive",
+  renderStats: {
+    totalObjects: 0,
+    aboveHorizon: 0,
+    projected: 0,
+    horizonClip: true,
+    sphereMode: "alt-az"
+  },
   appVersion: APP_VERSION,
   selectedId: null,
   debugVisible: false,
@@ -149,10 +156,11 @@ function loop(time) {
 
   updateAircraftIfNeeded(time);
 
-  renderer.render({
+  const objects = state.aircraftEnabled ? [...state.sky.objects, ...state.aircraft] : state.sky.objects;
+  state.renderStats = renderer.render({
     sky: {
       ...state.sky,
-      objects: state.aircraftEnabled ? [...state.sky.objects, ...state.aircraft] : state.sky.objects
+      objects
     },
     orientation: state.orientation,
     selectedId: state.selectedId
