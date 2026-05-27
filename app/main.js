@@ -11,6 +11,8 @@ import { AircraftService } from "./aircraft/aircraftService.js";
 import { SkyRenderer } from "./render/skyRenderer.js";
 import { AppUi } from "./ui/appUi.js";
 
+const APP_VERSION = "2026.05.27-debug-cache";
+
 const ui = new AppUi();
 const video = document.querySelector("#cameraFeed");
 const canvas = document.querySelector("#skyCanvas");
@@ -41,6 +43,7 @@ const state = {
   aircraftEnabled: false,
   aircraftLoading: false,
   aircraftStatus: "desactive",
+  appVersion: APP_VERSION,
   selectedId: null,
   debugVisible: false,
   lastSkyUpdate: 0,
@@ -192,8 +195,18 @@ function updateAircraftIfNeeded(time) {
     });
 }
 
-if ("serviceWorker" in navigator && import.meta.env?.PROD) {
+if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/Starlight/sw.js").catch(() => {});
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      registrations.forEach((registration) => registration.unregister());
+    });
+  });
+}
+
+if ("caches" in window) {
+  window.addEventListener("load", () => {
+    caches.keys().then((keys) => {
+      keys.filter((key) => key.startsWith("starlight")).forEach((key) => caches.delete(key));
+    });
   });
 }
