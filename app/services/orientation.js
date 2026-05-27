@@ -9,7 +9,10 @@ export class OrientationService extends EventTarget {
     this.hasSensorData = false;
     this.demoFrame = null;
     this.sensorTimeout = null;
-    this.boundHandleOrientation = this.handleOrientation.bind(this);
+    this.relativeFallbackTimeout = null;
+    this.sourceMode = null;
+    this.boundHandleAbsolute = (event) => this.handleOrientation(event, "absolute");
+    this.boundHandleRelative = (event) => this.handleOrientation(event, "device");
   }
 
   start(permissionStatus = "granted") {
@@ -18,19 +21,24 @@ export class OrientationService extends EventTarget {
       return;
     }
 
-    window.addEventListener("deviceorientationabsolute", this.boundHandleOrientation, true);
-    window.addEventListener("deviceorientation", this.boundHandleOrientation, true);
+    window.addEventListener("deviceorientationabsolute", this.boundHandleAbsolute, true);
+
+    this.relativeFallbackTimeout = window.setTimeout(() => {
+      if (!this.hasSensorData) {
+        window.addEventListener("deviceorientation", this.boundHandleRelative, true);
+      }
+    }, 700);
 
     this.sensorTimeout = window.setTimeout(() => {
       if (!this.hasSensorData) {
         this.startDemo();
       }
-    }, 1400);
+    }, 2200);
   }
 
   stop() {
-    window.removeEventListener("deviceorientationabsolute", this.boundHandleOrientation, true);
-    window.removeEventListener("deviceorientation", this.boundHandleOrientation, true);
+    window.removeEventListener("deviceorientationabsolute", this.boundHandleAbsolute, true);
+    window.removeEventListener("deviceorientation", this.boundHandleRelative, true);
 
     if (this.demoFrame !== null) {
       cancelAnimationFrame(this.demoFrame);
@@ -41,16 +49,33 @@ export class OrientationService extends EventTarget {
       clearTimeout(this.sensorTimeout);
       this.sensorTimeout = null;
     }
+
+    if (this.relativeFallbackTimeout !== null) {
+      clearTimeout(this.relativeFallbackTimeout);
+      this.relativeFallbackTimeout = null;
+    }
   }
 
-  handleOrientation(event) {
+  handleOrientation(event, sourceHint) {
     const alpha = typeof event.alpha === "number" ? event.alpha : null;
     const beta = typeof event.beta === "number" ? event.beta : null;
     const gamma = typeof event.gamma === "number" ? event.gamma : null;
     const webkitHeading = typeof event.webkitCompassHeading === "number" ? event.webkitCompassHeading : null;
+    const isAbsolute = sourceHint === "absolute" || event.absolute === true || webkitHeading !== null;
 
     if (alpha === null && webkitHeading === null) {
       return;
+    }
+
+    if (this.sourceMode === "absolute" && !isAbsolute) {
+      return;
+    }
+
+    if (isAbsolute && this.sourceMode !== "absolute") {
+      this.sourceMode = "absolute";
+      window.removeEventListener("deviceorientation", this.boundHandleRelative, true);
+    } else if (this.sourceMode === null || this.sourceMode === "demo") {
+      this.sourceMode = "device";
     }
 
     this.hasSensorData = true;
@@ -70,14 +95,14 @@ export class OrientationService extends EventTarget {
             alpha,
             beta,
             gamma,
-            source: event.absolute ? "absolute" : "device"
+            source: this.sourceMode
           }
         : deviceAnglesToCameraOrientation({
             alpha: webkitHeading === null ? alpha : normalizeDegrees(360 - webkitHeading),
             beta,
             gamma,
             screenAngle: getScreenAngle(),
-            source: event.absolute || webkitHeading !== null ? "absolute" : "device"
+            source: this.sourceMode
           });
 
     const shouldInitialize = this.rawOrientation === null;
@@ -89,6 +114,7 @@ export class OrientationService extends EventTarget {
 
   startDemo() {
     this.isDemo = true;
+    this.sourceMode = "demo";
 
     const animate = (time) => {
       const seconds = time / 1000;
