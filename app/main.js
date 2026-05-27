@@ -38,9 +38,9 @@ const state = {
     constellations: []
   },
   aircraft: [],
-  aircraftEnabled: true,
+  aircraftEnabled: false,
   aircraftLoading: false,
-  aircraftStatus: "en attente",
+  aircraftStatus: "desactive",
   selectedId: null,
   debugVisible: false,
   lastSkyUpdate: 0,

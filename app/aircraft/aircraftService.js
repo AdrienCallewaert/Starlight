@@ -30,7 +30,8 @@ export class AircraftService {
       const aircraft = (payload.ac || [])
         .map((record) => toSkyAircraft(record, location))
         .filter(Boolean)
-        .sort((a, b) => a.slantDistanceMeters - b.slantDistanceMeters);
+        .sort((a, b) => a.slantDistanceMeters - b.slantDistanceMeters)
+        .slice(0, 35);
 
       return {
         status: "ok",

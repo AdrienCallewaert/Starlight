@@ -1,4 +1,4 @@
-import { clamp, normalizeDegrees, toDegrees, toRadians } from "../utils/math.js";
+import { clamp, normalizeDegrees, signedDeltaDegrees, toDegrees, toRadians } from "../utils/math.js";
 
 export class OrientationService extends EventTarget {
   constructor() {
@@ -11,6 +11,7 @@ export class OrientationService extends EventTarget {
     this.sensorTimeout = null;
     this.relativeFallbackTimeout = null;
     this.sourceMode = null;
+    this.relativeReference = null;
     this.boundHandleAbsolute = (event) => this.handleOrientation(event, "absolute");
     this.boundHandleRelative = (event) => this.handleOrientation(event, "device");
   }
@@ -97,19 +98,45 @@ export class OrientationService extends EventTarget {
             gamma,
             source: this.sourceMode
           }
-        : deviceAnglesToCameraOrientation({
-            alpha: webkitHeading === null ? alpha : normalizeDegrees(360 - webkitHeading),
-            beta,
-            gamma,
-            screenAngle: getScreenAngle(),
-            source: this.sourceMode
-          });
+        : this.sourceMode === "absolute"
+          ? deviceAnglesToCameraOrientation({
+              alpha: webkitHeading === null ? alpha : normalizeDegrees(360 - webkitHeading),
+              beta,
+              gamma,
+              screenAngle: getScreenAngle(),
+              source: this.sourceMode
+            })
+          : this.deviceRelativeOrientation(alpha, beta, gamma);
 
     const shouldInitialize = this.rawOrientation === null;
     this.rawOrientation = nextOrientation;
-    this.orientation = shouldInitialize ? nextOrientation : smoothOrientation(this.orientation, nextOrientation, 0.42);
+    this.orientation = shouldInitialize
+      ? nextOrientation
+      : smoothOrientation(this.orientation, nextOrientation, nextOrientation.source === "relative" ? 0.34 : 0.42);
 
     this.dispatchEvent(new CustomEvent("change", { detail: this.orientation }));
+  }
+
+  deviceRelativeOrientation(alpha, beta, gamma) {
+    const rawHeading = normalizeDegrees(360 - alpha);
+
+    if (!this.relativeReference) {
+      this.relativeReference = {
+        rawHeading,
+        heading: this.orientation.heading
+      };
+    }
+
+    return {
+      heading: normalizeDegrees(this.relativeReference.heading + signedDeltaDegrees(rawHeading - this.relativeReference.rawHeading)),
+      pitch: clamp(90 - Math.abs(beta), -85, 85),
+      roll: 0,
+      alpha,
+      beta,
+      gamma,
+      basis: null,
+      source: "relative"
+    };
   }
 
   startDemo() {
@@ -159,7 +186,7 @@ function smoothOrientation(current, next, factor) {
 
 function smoothAngle(current, next, factor) {
   const delta = ((next - current + 540) % 360) - 180;
-  return normalizeDegrees(current + delta * factor);
+  return normalizeDegrees(current + clamp(delta * factor, -14, 14));
 }
 
 function smoothNumber(current, next, factor) {
