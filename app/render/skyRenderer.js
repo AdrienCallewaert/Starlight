@@ -126,6 +126,19 @@ export class SkyRenderer {
     };
   }
 
+  screenToWorldVector(x, y, orientation) {
+    const metrics = this.projectionMetrics();
+    const basis = cameraBasis(orientation);
+    const cameraX = (x - metrics.centerX) / metrics.focalX;
+    const cameraY = -(y - metrics.centerY) / metrics.focalY;
+
+    return normalize({
+      x: basis.forward.x + basis.right.x * cameraX + basis.up.x * cameraY,
+      y: basis.forward.y + basis.right.y * cameraX + basis.up.y * cameraY,
+      z: basis.forward.z + basis.right.z * cameraX + basis.up.z * cameraY
+    });
+  }
+
   projectionMetrics() {
     const horizontalFov = this.width > this.height ? 82 : 66;
     const verticalFov = horizontalFov * (this.height / Math.max(1, this.width));

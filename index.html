@@ -13,7 +13,7 @@
       name="description"
       content="Starlight superpose les etoiles, planetes et constellations sur le ciel avec la camera du smartphone."
     />
-    <link rel="manifest" href="/Starlight/manifest.webmanifest?v=2026.05.27-reference-cal" />
+    <link rel="manifest" href="/Starlight/manifest.webmanifest?v=2026.05.27-auto-scan-cal" />
     <link rel="icon" type="image/svg+xml" href="/Starlight/icons/starlight-icon.svg" />
     <link rel="stylesheet" href="./app/styles/main.css" />
     <script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
@@ -89,7 +89,10 @@
         <aside class="calibration-panel is-hidden" id="calibrationPanel">
           <div class="calibration-head">
             <span>Repere</span>
-            <button class="micro-button" id="calibrationReset" type="button">Reset</button>
+            <div class="calibration-actions">
+              <button class="micro-button" id="calibrationScan" type="button">Scan</button>
+              <button class="micro-button" id="calibrationReset" type="button">Reset</button>
+            </div>
           </div>
           <div class="calibration-candidates" id="calibrationCandidates"></div>
           <p class="calibration-status" id="calibrationStatus">Vise au centre, puis touche un repere.</p>

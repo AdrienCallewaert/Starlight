@@ -376,6 +376,11 @@ noscript {
   text-transform: uppercase;
 }
 
+.calibration-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
 .micro-button {
   min-height: 30px;
   padding: 0 0.65rem;
@@ -385,6 +390,10 @@ noscript {
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 800;
+}
+
+.micro-button:disabled {
+  opacity: 0.48;
 }
 
 .calibration-candidates {

@@ -15,6 +15,7 @@ export class AppUi {
     this.debugPanel = document.querySelector("#debugPanel");
     this.calibrationPanel = document.querySelector("#calibrationPanel");
     this.calibrationCandidates = document.querySelector("#calibrationCandidates");
+    this.calibrationScan = document.querySelector("#calibrationScan");
     this.calibrationReset = document.querySelector("#calibrationReset");
     this.calibrationStatus = document.querySelector("#calibrationStatus");
     this.sheet = document.querySelector("#infoSheet");
@@ -99,6 +100,10 @@ export class AppUi {
     this.calibrationReset.addEventListener("click", onReset);
   }
 
+  bindCalibrationScan(onScan) {
+    this.calibrationScan.addEventListener("click", onScan);
+  }
+
   bindSheetClose(onClose) {
     this.sheetClose.addEventListener("click", onClose);
   }
@@ -113,7 +118,7 @@ export class AppUi {
     this.calibrationPanel.classList.toggle("is-hidden", !visible);
   }
 
-  updateCalibrationPanel({ candidates, calibration, onCalibrate }) {
+  updateCalibrationPanel({ candidates, calibration, scanStatus, scanning, onCalibrate }) {
     const buttons = candidates.map((candidate) => {
       const button = document.createElement("button");
       button.className = "calibration-chip";
@@ -124,8 +129,9 @@ export class AppUi {
       return button;
     });
 
+    this.calibrationScan.disabled = Boolean(scanning);
     this.calibrationCandidates.replaceChildren(...buttons);
-    this.calibrationStatus.textContent = calibrationStatusText(calibration, candidates.length);
+    this.calibrationStatus.textContent = scanStatus || calibrationStatusText(calibration, candidates.length);
   }
 
   updateDebug({

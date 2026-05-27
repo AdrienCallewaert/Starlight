@@ -21,10 +21,23 @@ export function referenceCandidates(objects, limit = 8) {
     .slice(0, limit);
 }
 
+export function autoReferenceCandidates(objects, limit = 12) {
+  return objects
+    .filter((object) => object.category === "sun" || isReferenceCandidate(object))
+    .filter((object) => Number.isFinite(object.alt) && object.alt >= MIN_REFERENCE_ALTITUDE)
+    .sort((a, b) => referenceScore(a) - referenceScore(b))
+    .slice(0, limit);
+}
+
 export function createCalibration(reference, orientation) {
   const basis = basisFromOrientation(orientation);
+
+  return createCalibrationFromVector(reference, basis.forward);
+}
+
+export function createCalibrationFromVector(reference, observedVector) {
   const target = vectorFromAltAz(reference.az, reference.alt);
-  const rotation = rotationBetweenVectors(basis.forward, target);
+  const rotation = rotationBetweenVectors(observedVector, target);
 
   return {
     active: true,
@@ -85,6 +98,10 @@ function referenceScore(object) {
 
   if (object.category === "moon") {
     return -120 + altitudePenalty;
+  }
+
+  if (object.category === "sun") {
+    return -100 + altitudePenalty;
   }
 
   if (object.category === "planet") {
