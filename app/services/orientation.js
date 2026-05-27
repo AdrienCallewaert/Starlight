@@ -167,7 +167,7 @@ export class OrientationService extends EventTarget {
 function smoothOrientation(current, next, factor) {
   if (current.basis && next.basis) {
     const basis = smoothBasis(current.basis, next.basis, factor);
-    const angles = anglesFromBasis(basis);
+    const angles = anglesFromForward(basis.forward);
 
     return {
       ...next,
@@ -200,11 +200,14 @@ function deviceAnglesToCameraOrientation({ alpha, beta, gamma, screenAngle, sour
   const zAxis = { east: matrix.m13, north: matrix.m23, up: matrix.m33 };
   const forward = normalize(toRenderVector({ east: -zAxis.east, north: -zAxis.north, up: -zAxis.up }));
   const screenRight = normalize(projectOnPlane(toRenderVector(screenRightEarthAxis(xAxis, yAxis, screenAngle)), forward));
-  const basis = orthonormalBasis(forward, screenRight);
-  const angles = anglesFromBasis(basis);
+  const rawBasis = orthonormalBasis(forward, screenRight);
+  const rawAngles = anglesFromBasis(rawBasis);
+  const angles = anglesFromForward(forward);
+  const basis = fallbackBasisFromForward(forward, angles.heading);
 
   return {
     ...angles,
+    rawRoll: rawAngles.roll,
     alpha,
     beta,
     gamma,
@@ -281,9 +284,9 @@ function orthonormalBasis(forward, preferredRight) {
 
 function smoothBasis(current, next, factor) {
   const forward = normalize(lerpVector(current.forward, next.forward, factor));
-  const right = normalize(lerpVector(current.right, next.right, factor));
+  const heading = normalizeDegrees(toDegrees(Math.atan2(forward.x, forward.z)));
 
-  return orthonormalBasis(forward, right);
+  return fallbackBasisFromForward(forward, heading);
 }
 
 function anglesFromBasis(basis) {
@@ -296,6 +299,14 @@ function anglesFromBasis(basis) {
     heading,
     pitch,
     roll
+  };
+}
+
+function anglesFromForward(forward) {
+  return {
+    heading: normalizeDegrees(toDegrees(Math.atan2(forward.x, forward.z))),
+    pitch: toDegrees(Math.asin(clamp(forward.y, -1, 1))),
+    roll: 0
   };
 }
 
@@ -312,6 +323,7 @@ function fallbackBasisFromForward(forward, heading) {
   }
 
   return {
+    forward: normalize(forward),
     right,
     up: normalize(cross(forward, right))
   };
