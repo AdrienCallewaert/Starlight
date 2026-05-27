@@ -106,9 +106,10 @@ export class AppUi {
     this.debugFields.lon.textContent = formatNumber(location.longitude, 5);
     this.debugFields.altitude.textContent =
       typeof location.altitude === "number" ? `${Math.round(location.altitude)} m` : "--";
+    const displayRoll = typeof orientation.rawRoll === "number" ? orientation.rawRoll : orientation.roll;
     this.debugFields.heading.textContent = `${round(orientation.heading, 1)} deg`;
     this.debugFields.pitch.textContent = `${round(orientation.pitch, 1)} deg`;
-    this.debugFields.roll.textContent = `${round(orientation.roll, 1)} deg`;
+    this.debugFields.roll.textContent = `${round(displayRoll, 1)} deg`;
     this.debugFields.timezone.textContent = timezone;
     this.debugFields.horizon.textContent = renderStats
       ? `${renderStats.projected}/${renderStats.aboveHorizon}/${renderStats.totalObjects} clip`

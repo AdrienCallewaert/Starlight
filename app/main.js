@@ -11,7 +11,7 @@ import { AircraftService } from "./aircraft/aircraftService.js";
 import { SkyRenderer } from "./render/skyRenderer.js";
 import { AppUi } from "./ui/appUi.js";
 
-const APP_VERSION = "2026.05.27-horizon-sphere";
+const APP_VERSION = "2026.05.27-horizon-anchor";
 
 const ui = new AppUi();
 const video = document.querySelector("#cameraFeed");

@@ -37,7 +37,7 @@ export class SkyRenderer {
       aboveHorizon: sky.objects.filter((object) => isAboveHorizon(object)).length,
       projected: 0,
       horizonClip: true,
-      sphereMode: orientation.basis ? "basis-3d" : "alt-az"
+      sphereMode: renderMode(orientation)
     };
 
     this.drawCameraTint(ctx);
@@ -98,15 +98,14 @@ export class SkyRenderer {
 
   project(object, orientation, options = {}) {
     const { horizonClip = true } = options;
-    const horizontalFov = this.width > this.height ? 82 : 66;
-    const verticalFov = horizontalFov * (this.height / Math.max(1, this.width));
+    const metrics = this.projectionMetrics();
     const target = vectorFromAltAz(object.az, object.alt);
     const basis = cameraBasis(orientation);
     const cameraX = dot(target, basis.right);
     const cameraY = dot(target, basis.up);
     const cameraZ = dot(target, basis.forward);
-    const x = this.width / 2 + (cameraX / Math.max(0.001, cameraZ)) * (this.width / 2) / Math.tan(toRadians(horizontalFov / 2));
-    const y = this.height / 2 - (cameraY / Math.max(0.001, cameraZ)) * (this.height / 2) / Math.tan(toRadians(verticalFov / 2));
+    const x = metrics.centerX + (cameraX / Math.max(0.001, cameraZ)) * metrics.focalX;
+    const y = metrics.centerY - (cameraY / Math.max(0.001, cameraZ)) * metrics.focalY;
     const azDelta = signedDeltaDegrees(object.az - orientation.heading);
     const altDelta = object.alt - orientation.pitch;
     const margin = 68;
@@ -124,6 +123,18 @@ export class SkyRenderer {
         x < this.width + margin &&
         y > -margin &&
         y < this.height + margin
+    };
+  }
+
+  projectionMetrics() {
+    const horizontalFov = this.width > this.height ? 82 : 66;
+    const verticalFov = horizontalFov * (this.height / Math.max(1, this.width));
+
+    return {
+      centerX: this.width / 2,
+      centerY: this.height / 2,
+      focalX: (this.width / 2) / Math.tan(toRadians(horizontalFov / 2)),
+      focalY: (this.height / 2) / Math.tan(toRadians(verticalFov / 2))
     };
   }
 
@@ -173,29 +184,32 @@ export class SkyRenderer {
   }
 
   drawAltitudeGuide(ctx, orientation) {
+    const guideOrientation = horizonGuideOrientation(orientation);
+
     ctx.save();
     ctx.lineWidth = 1;
     ctx.font = "700 10px Inter, system-ui, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
 
-    for (const altitude of [0, 30, 60, 90]) {
-      const isHorizon = altitude === 0;
+    this.drawHorizonGuide(ctx, guideOrientation);
+
+    for (const altitude of [30, 60, 90]) {
       let started = false;
       let previousPoint = null;
 
-      ctx.globalAlpha = isHorizon ? 0.46 : 0.22;
-      ctx.strokeStyle = isHorizon ? "rgba(245, 217, 138, 0.68)" : "rgba(255, 255, 255, 0.34)";
-      ctx.setLineDash(isHorizon ? [10, 10] : [4, 12]);
+      ctx.globalAlpha = 0.22;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.34)";
+      ctx.setLineDash([4, 12]);
       ctx.beginPath();
 
       for (let offset = -132; offset <= 132; offset += 3) {
         const point = this.project(
           {
-            az: normalizeDegrees(orientation.heading + offset),
+            az: normalizeDegrees(guideOrientation.heading + offset),
             alt: altitude
           },
-          orientation,
+          guideOrientation,
           { horizonClip: false }
         );
 
@@ -218,11 +232,34 @@ export class SkyRenderer {
       }
 
       ctx.stroke();
-      this.drawAltitudeLabel(ctx, orientation, altitude);
+      this.drawAltitudeLabel(ctx, guideOrientation, altitude);
     }
 
     ctx.setLineDash([]);
     ctx.restore();
+  }
+
+  drawHorizonGuide(ctx, orientation) {
+    const basis = cameraBasis(orientation);
+    const line = horizonLineInScreen(basis, this.projectionMetrics(), this.width, this.height);
+
+    if (!line) {
+      return;
+    }
+
+    ctx.globalAlpha = 0.56;
+    ctx.strokeStyle = "rgba(245, 217, 138, 0.72)";
+    ctx.setLineDash([10, 10]);
+    ctx.beginPath();
+    ctx.moveTo(line.start.x, line.start.y);
+    ctx.lineTo(line.end.x, line.end.y);
+    ctx.stroke();
+
+    if (line.label) {
+      ctx.globalAlpha = 0.76;
+      ctx.fillStyle = "rgba(245, 217, 138, 0.88)";
+      ctx.fillText("HORIZON", line.label.x + 8, line.label.y - 8);
+    }
   }
 
   drawAltitudeLabel(ctx, orientation, altitude) {
@@ -455,6 +492,128 @@ function createEmptyStats() {
 
 function isAboveHorizon(object) {
   return object.alt >= HORIZON_ALTITUDE;
+}
+
+function renderMode(orientation) {
+  if (orientation.horizonBasis) {
+    return "basis+roll";
+  }
+
+  return orientation.basis ? "basis-3d" : "alt-az";
+}
+
+function horizonGuideOrientation(orientation) {
+  if (!orientation.horizonBasis) {
+    return orientation;
+  }
+
+  return {
+    ...orientation,
+    basis: orientation.horizonBasis
+  };
+}
+
+function horizonLineInScreen(basis, metrics, width, height) {
+  const margin = 84;
+  const coefficientA = basis.right.y / metrics.focalX;
+  const coefficientB = -basis.up.y / metrics.focalY;
+  const coefficientC =
+    basis.forward.y -
+    (basis.right.y * metrics.centerX) / metrics.focalX +
+    (basis.up.y * metrics.centerY) / metrics.focalY;
+  const points = lineRectIntersections(coefficientA, coefficientB, coefficientC, {
+    minX: -margin,
+    minY: -margin,
+    maxX: width + margin,
+    maxY: height + margin
+  });
+
+  if (points.length < 2) {
+    return null;
+  }
+
+  const [start, end] = farthestPair(points);
+  const label = horizonLabelPoint(coefficientA, coefficientB, coefficientC, start, end, width, height);
+
+  return { start, end, label };
+}
+
+function lineRectIntersections(coefficientA, coefficientB, coefficientC, rect) {
+  const points = [];
+  const epsilon = 0.000001;
+
+  if (Math.abs(coefficientB) > epsilon) {
+    pushUniquePoint(points, {
+      x: rect.minX,
+      y: -(coefficientA * rect.minX + coefficientC) / coefficientB
+    });
+    pushUniquePoint(points, {
+      x: rect.maxX,
+      y: -(coefficientA * rect.maxX + coefficientC) / coefficientB
+    });
+  }
+
+  if (Math.abs(coefficientA) > epsilon) {
+    pushUniquePoint(points, {
+      x: -(coefficientB * rect.minY + coefficientC) / coefficientA,
+      y: rect.minY
+    });
+    pushUniquePoint(points, {
+      x: -(coefficientB * rect.maxY + coefficientC) / coefficientA,
+      y: rect.maxY
+    });
+  }
+
+  return points.filter(
+    (point) =>
+      point.x >= rect.minX - 0.5 &&
+      point.x <= rect.maxX + 0.5 &&
+      point.y >= rect.minY - 0.5 &&
+      point.y <= rect.maxY + 0.5
+  );
+}
+
+function pushUniquePoint(points, point) {
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    return;
+  }
+
+  if (!points.some((current) => Math.hypot(current.x - point.x, current.y - point.y) < 0.5)) {
+    points.push(point);
+  }
+}
+
+function farthestPair(points) {
+  let best = [points[0], points[1]];
+  let bestDistance = -1;
+
+  for (let index = 0; index < points.length; index += 1) {
+    for (let nextIndex = index + 1; nextIndex < points.length; nextIndex += 1) {
+      const distance = Math.hypot(points[index].x - points[nextIndex].x, points[index].y - points[nextIndex].y);
+      if (distance > bestDistance) {
+        bestDistance = distance;
+        best = [points[index], points[nextIndex]];
+      }
+    }
+  }
+
+  return best;
+}
+
+function horizonLabelPoint(coefficientA, coefficientB, coefficientC, start, end, width, height) {
+  let x = clamp(width * 0.12, 14, width - 92);
+  let y = Math.abs(coefficientB) > 0.000001 ? -(coefficientA * x + coefficientC) / coefficientB : null;
+
+  if (y === null || y < 16 || y > height - 16) {
+    x = (start.x + end.x) / 2;
+    y = (start.y + end.y) / 2;
+  }
+
+  if (x < 14 || x > width - 92 || y < 16 || y > height - 16) {
+    return null;
+  }
+
+  return { x, y };
 }
 
 function objectSize(object) {

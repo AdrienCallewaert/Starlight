@@ -135,6 +135,8 @@ export class OrientationService extends EventTarget {
       beta,
       gamma,
       basis: null,
+      horizonBasis: null,
+      rawRoll: 0,
       source: "relative"
     };
   }
@@ -149,9 +151,12 @@ export class OrientationService extends EventTarget {
         heading: normalizeDegrees(205 + seconds * 4),
         pitch: 36 + Math.sin(seconds * 0.55) * 12,
         roll: 0,
+        rawRoll: 0,
         alpha: null,
         beta: null,
         gamma: null,
+        basis: null,
+        horizonBasis: null,
         source: "demo"
       };
       this.dispatchEvent(new CustomEvent("change", { detail: this.orientation }));
@@ -167,12 +172,22 @@ export class OrientationService extends EventTarget {
 function smoothOrientation(current, next, factor) {
   if (current.basis && next.basis) {
     const basis = smoothBasis(current.basis, next.basis, factor);
+    const horizonBasis =
+      current.horizonBasis && next.horizonBasis
+        ? smoothFullBasis(current.horizonBasis, next.horizonBasis, Math.min(factor, 0.18))
+        : next.horizonBasis || null;
+    const rawRoll =
+      typeof current.rawRoll === "number" && typeof next.rawRoll === "number"
+        ? smoothSignedAngle(current.rawRoll, next.rawRoll, 0.18)
+        : next.rawRoll;
     const angles = anglesFromForward(basis.forward);
 
     return {
       ...next,
       ...angles,
-      basis
+      rawRoll,
+      basis,
+      horizonBasis
     };
   }
 
@@ -191,6 +206,10 @@ function smoothAngle(current, next, factor) {
 
 function smoothNumber(current, next, factor) {
   return current + (next - current) * factor;
+}
+
+function smoothSignedAngle(current, next, factor) {
+  return current + clamp(signedDeltaDegrees(next - current) * factor, -8, 8);
 }
 
 function deviceAnglesToCameraOrientation({ alpha, beta, gamma, screenAngle, source }) {
@@ -212,6 +231,7 @@ function deviceAnglesToCameraOrientation({ alpha, beta, gamma, screenAngle, sour
     beta,
     gamma,
     basis,
+    horizonBasis: rawBasis,
     source
   };
 }
@@ -287,6 +307,31 @@ function smoothBasis(current, next, factor) {
   const heading = normalizeDegrees(toDegrees(Math.atan2(forward.x, forward.z)));
 
   return fallbackBasisFromForward(forward, heading);
+}
+
+function smoothFullBasis(current, next, factor) {
+  const forward = normalize(lerpVector(current.forward, next.forward, factor));
+  let nextRight = next.right;
+
+  if (dot(current.right, nextRight) < 0) {
+    nextRight = {
+      x: -nextRight.x,
+      y: -nextRight.y,
+      z: -nextRight.z
+    };
+  }
+
+  let right = normalize(projectOnPlane(lerpVector(current.right, nextRight, factor), forward));
+
+  if (length(right) < 0.001) {
+    right = fallbackBasisFromForward(forward, normalizeDegrees(toDegrees(Math.atan2(forward.x, forward.z)))).right;
+  }
+
+  return {
+    forward,
+    right,
+    up: normalize(cross(forward, right))
+  };
 }
 
 function anglesFromBasis(basis) {
@@ -382,9 +427,12 @@ function createDemoOrientation() {
     heading: 205,
     pitch: 38,
     roll: 0,
+    rawRoll: 0,
     alpha: null,
     beta: null,
     gamma: null,
+    basis: null,
+    horizonBasis: null,
     source: "demo"
   };
 }
