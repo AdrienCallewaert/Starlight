@@ -11,7 +11,17 @@ import { AircraftService } from "./aircraft/aircraftService.js";
 import { SkyRenderer } from "./render/skyRenderer.js";
 import { AppUi } from "./ui/appUi.js";
 
-const APP_VERSION = "2026.05.27-horizon-anchor";
+const APP_VERSION = "2026.05.27-cache-purge";
+const CACHE_RELOAD_KEY = "starlight-cache-reload-version";
+const cacheStatus = {
+  reload: ensureVersionedLaunchUrl(APP_VERSION),
+  purge: "en cours"
+};
+
+purgeBrowserCaches().then((status) => {
+  cacheStatus.purge = status;
+  state.cacheStatus = status;
+});
 
 const ui = new AppUi();
 const video = document.querySelector("#cameraFeed");
@@ -43,6 +53,7 @@ const state = {
   aircraftEnabled: false,
   aircraftLoading: false,
   aircraftStatus: "desactive",
+  cacheStatus: cacheStatus.reload ? "reload version" : cacheStatus.purge,
   renderStats: {
     totalObjects: 0,
     aboveHorizon: 0,
@@ -214,7 +225,61 @@ if ("serviceWorker" in navigator) {
 if ("caches" in window) {
   window.addEventListener("load", () => {
     caches.keys().then((keys) => {
-      keys.filter((key) => key.startsWith("starlight")).forEach((key) => caches.delete(key));
+      keys.filter(shouldDeleteCache).forEach((key) => caches.delete(key));
     });
   });
+}
+
+function ensureVersionedLaunchUrl(version) {
+  if (!window.location.protocol.startsWith("http")) {
+    return false;
+  }
+
+  const url = new URL(window.location.href);
+
+  if (url.searchParams.get("v") === version) {
+    sessionStorage.removeItem(CACHE_RELOAD_KEY);
+    return false;
+  }
+
+  if (sessionStorage.getItem(CACHE_RELOAD_KEY) === version) {
+    return false;
+  }
+
+  sessionStorage.setItem(CACHE_RELOAD_KEY, version);
+  url.searchParams.set("v", version);
+  url.searchParams.set("t", Date.now().toString(36));
+  window.location.replace(url);
+  return true;
+}
+
+async function purgeBrowserCaches() {
+  const results = [];
+
+  if ("serviceWorker" in navigator) {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+      results.push(`${registrations.length} sw`);
+    } catch (error) {
+      results.push("sw err");
+    }
+  }
+
+  if ("caches" in window) {
+    try {
+      const keys = await caches.keys();
+      const deletedKeys = keys.filter(shouldDeleteCache);
+      await Promise.all(deletedKeys.map((key) => caches.delete(key)));
+      results.push(`${deletedKeys.length} cache`);
+    } catch (error) {
+      results.push("cache err");
+    }
+  }
+
+  return results.length ? results.join(" / ") : "aucun";
+}
+
+function shouldDeleteCache(key) {
+  return key.toLowerCase().includes("starlight");
 }

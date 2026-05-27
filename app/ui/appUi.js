@@ -33,6 +33,7 @@ export class AppUi {
       timezone: document.querySelector("#debugTimezone"),
       horizon: document.querySelector("#debugHorizon"),
       sphere: document.querySelector("#debugSphere"),
+      cache: document.querySelector("#debugCache"),
       aircraft: document.querySelector("#debugAircraft"),
       version: document.querySelector("#debugVersion")
     };
@@ -97,6 +98,7 @@ export class AppUi {
     aircraft,
     aircraftEnabled,
     aircraftStatus,
+    cacheStatus,
     renderStats,
     appVersion
   }) {
@@ -115,6 +117,7 @@ export class AppUi {
       ? `${renderStats.projected}/${renderStats.aboveHorizon}/${renderStats.totalObjects} clip`
       : "--";
     this.debugFields.sphere.textContent = renderStats?.sphereMode || "--";
+    this.debugFields.cache.textContent = cacheStatus || "--";
     this.debugFields.aircraft.textContent = aircraftEnabled ? `${aircraft.length} / ${aircraftStatus}` : "off";
     this.debugFields.version.textContent = appVersion;
   }

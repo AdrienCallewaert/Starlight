@@ -2,7 +2,7 @@
   "name": "Starlight",
   "short_name": "Starlight",
   "description": "Carte du ciel mobile en realite augmentee.",
-  "start_url": "/Starlight/",
+  "start_url": "/Starlight/?launch=pwa",
   "scope": "/Starlight/",
   "display": "standalone",
   "orientation": "portrait",
